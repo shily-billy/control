@@ -1,54 +1,60 @@
-# Core Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
+# Core Dependencies
+Python>=3.9
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
 pydantic-settings==2.1.0
 
-# AI & Automation
-langchain==0.1.0
-openai==1.10.0
-anthropiс==0.8.0
-
-# Web Automation
-selenium==4.16.0
-playwright==1.41.0
-beautifulsoup4==4.12.3
-requests==2.31.0
-httpx==0.26.0
+# Database
+sqlalchemy==2.0.23
+alembic==1.13.1
+psycopg2-binary==2.9.9
+pymongo==4.6.0
+redis==5.0.1
 
 # Task Queue & Scheduling
 celery==5.3.4
-redis==5.0.1
-apscheduler==3.10.4
+aioredis==2.0.1
+aiofiles==23.2.1
 
-# Database
-sqlalchemy==2.0.25
-alembic==1.13.1
-psycopg2-binary==2.9.9
-pymongo==4.6.1
+# Web Automation
+selenium==4.15.2
+playwright==1.40.0
+beautifulsoup4==4.12.2
+requests==2.31.0
+aiohttp==3.9.1
 
-# Messaging
-python-telegram-bot==20.7
-twilio==8.11.1
-instagrapi==2.0.0
+# AI & LLM
+langchain==0.1.1
+openai==1.3.9
+anthropic==0.7.1
+python-dotenv==1.0.0
+
+# APIs & Integrations
+telegram-bot-api==13.0
+python-telegram-bot==20.3
+whatsapp-api==1.0
+instagram-api==1.0
+tweepy==4.14.0
 
 # Utilities
-python-dotenv==1.0.0
-pyyaml==6.0.1
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+python-jose==3.3.0
+passlib==1.7.4
+cryptography==41.0.7
 python-multipart==0.0.6
-
-# Monitoring & Logging
+cors==1.0.1
+pyyaml==6.0.1
+python-json-logger==2.0.7
 loguru==0.7.2
-prometheus-client==0.19.0
 
-# Frontend
-jinja2==3.1.3
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2
 
 # Development
-pytest==7.4.4
-pytest-asyncio==0.23.3
-black==23.12.1
-flake8==7.0.0
-mypy==1.8.0
+black==23.12.0
+flake8==6.1.0
+mypy==1.7.1
+ipython==8.18.1
