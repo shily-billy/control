@@ -30,19 +30,14 @@ openai==1.3.9
 anthropic==0.7.1
 python-dotenv==1.0.0
 
-# APIs & Integrations
-telegram-bot-api==13.0
-python-telegram-bot==20.3
-whatsapp-api==1.0
-instagram-api==1.0
-tweepy==4.14.0
+# Telegram
+python-telegram-bot==22.5
 
 # Utilities
 python-jose==3.3.0
 passlib==1.7.4
 cryptography==41.0.7
 python-multipart==0.0.6
-cors==1.0.1
 pyyaml==6.0.1
 python-json-logger==2.0.7
 loguru==0.7.2
