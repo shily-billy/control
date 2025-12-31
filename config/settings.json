@@ -1,0 +1,1 @@
+{"platforms": {"divar": {"user_data_dir": "./data/playwright/divar", "headless": true}, "sheypoor": {"user_data_dir": "./data/playwright/sheypoor", "headless": true}, "instagram": {"user_data_dir": "./data/playwright/instagram", "headless": true}}, "dashboard": {"ws_channel": "control:events"}}
