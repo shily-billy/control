@@ -21,53 +21,23 @@ def main():
         context = browser.new_context()
         page = context.new_page()
 
-        # Login page (commonly act=logins)
         page.goto(f"{base}?act=logins", wait_until="domcontentloaded")
 
-        # Try multiple common selectors because this is a PHP partner panel.
-        # You may need to adjust once we see the real DOM.
-        def fill_any(selectors, value):
-            for sel in selectors:
-                if page.locator(sel).count() > 0:
-                    page.fill(sel, value)
-                    return True
-            return False
+        # Exact fields from login HTML:
+        page.fill('input[name="username"]', username)
+        page.fill('input[name="password"]', password)
 
-        filled_user = fill_any(
-            [
-                'input[name="username"]',
-                'input[name="user"]',
-                'input[name="email"]',
-                'input[type="text"]',
-            ],
-            username,
-        )
-        filled_pass = fill_any(
-            [
-                'input[name="password"]',
-                'input[name="pass"]',
-                'input[type="password"]',
-            ],
-            password,
-        )
+        # CAPTCHA is required on this login form (captcha.php + captcha_code).
+        # Do not attempt to bypass; instead, switch to manual/headful flow.
+        if page.locator('input[name="captcha_code"]').count() > 0:
+            browser.close()
+            raise SystemExit(
+                "CAPTCHA detected. Use scripts/mihanstore_login_manual.py to login in headful mode and type captcha manually."
+            )
 
-        if not filled_user or not filled_pass:
-            raise SystemExit("Could not find login fields. Run with headless=False and inspect selectors.")
-
-        # Submit: try button/input submit.
-        submitted = False
-        for sel in ['button[type="submit"]', 'input[type="submit"]']:
-            if page.locator(sel).count() > 0:
-                page.click(sel)
-                submitted = True
-                break
-        if not submitted:
-            # fallback: press Enter in password field
-            page.keyboard.press("Enter")
-
+        page.click('input[name="submit"]')
         page.wait_for_timeout(2000)
 
-        # Save session storage state
         context.storage_state(path=str(state_path))
         browser.close()
 
