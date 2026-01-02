@@ -11,6 +11,42 @@ from app.database.models import Vendor, Order, DailyStats, SyncLog
 from app.common.log import console
 
 
+def _parse_date_to_datetime(date_value) -> Optional[datetime]:
+    """
+    تبدیل تاریخ به datetime
+    پشتیبانی از: string (شمسی), date, datetime
+    """
+    if date_value is None:
+        return None
+    
+    # اگر قبلاً datetime است
+    if isinstance(date_value, datetime):
+        return date_value
+    
+    # اگر date است
+    if isinstance(date_value, date):
+        return datetime.combine(date_value, datetime.min.time())
+    
+    # اگر string است
+    if isinstance(date_value, str):
+        try:
+            # فرمت: 1404-01-12 (شمسی)
+            date_parts = date_value.split("-")
+            if len(date_parts) == 3:
+                jalali_year = int(date_parts[0])
+                month = int(date_parts[1])
+                day = int(date_parts[2])
+                
+                # تبدیل ساده شمسی به میلادی
+                gregorian_year = jalali_year + 621
+                return datetime(gregorian_year, month, day)
+        except (ValueError, IndexError) as e:
+            console.print(f"[yellow]⚠ Invalid date format: {date_value}[/yellow]")
+            return None
+    
+    return None
+
+
 # ==================== Vendor CRUD ====================
 
 def create_vendor(db: Session, name: str, display_name: str, base_url: str = "") -> Vendor:
@@ -74,13 +110,20 @@ def upsert_order(db: Session, vendor_name: str, order_data: Dict) -> tuple[Order
         )
     ).first()
     
+    # تبدیل تاریخ: از 'date' یا 'order_date' به datetime
+    order_date_value = order_data.get('order_date') or order_data.get('date')
+    parsed_date = _parse_date_to_datetime(order_date_value)
+    
     if existing:
         # بروزرسانی
-        for key, value in order_data.items():
-            if key == 'order_id':
-                continue
-            if hasattr(existing, key):
-                setattr(existing, key, value)
+        existing.product_name = order_data.get('product', existing.product_name)
+        existing.commission = order_data.get('commission_amount', existing.commission)
+        existing.price = order_data.get('price', existing.price)
+        existing.status = order_data.get('status', existing.status)
+        existing.tracking_code = order_data.get('tracking_code', existing.tracking_code)
+        if parsed_date:
+            existing.order_date = parsed_date
+        existing.extra_data = order_data.get('extra_data', existing.extra_data)
         existing.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(existing)
@@ -95,7 +138,7 @@ def upsert_order(db: Session, vendor_name: str, order_data: Dict) -> tuple[Order
             price=order_data.get('price', 0.0),
             status=order_data.get('status'),
             tracking_code=order_data.get('tracking_code'),
-            order_date=order_data.get('date'),
+            order_date=parsed_date,
             extra_data=order_data.get('extra_data', {})
         )
         db.add(order)
@@ -117,34 +160,6 @@ def bulk_upsert_orders(db: Session, vendor_name: str, orders_data: List[Dict]) -
     
     for order_data in orders_data:
         try:
-            # تبدیل order_date از string به datetime
-            if "order_date" in order_data:
-                date_value = order_data["order_date"]
-                
-                # اگر string است، تبدیل کن
-                if isinstance(date_value, str):
-                    try:
-                        # فرمت: 1404-01-12 (شمسی)
-                        date_parts = date_value.split("-")
-                        if len(date_parts) == 3:
-                            # تبدیل به datetime (سال شمسی + 621 = میلادی تقریبی)
-                            jalali_year = int(date_parts[0])
-                            month = int(date_parts[1])
-                            day = int(date_parts[2])
-                            
-                            # تبدیل ساده شمسی به میلادی (تقریبی)
-                            gregorian_year = jalali_year + 621
-                            order_data["order_date"] = datetime(gregorian_year, month, day)
-                    except (ValueError, IndexError) as e:
-                        # در صورت خطا، None قرار بده
-                        order_data["order_date"] = None
-                        console.print(f"[yellow]⚠ Invalid date format: {date_value}[/yellow]")
-                
-                # اگر date است، تبدیل به datetime
-                elif isinstance(date_value, date) and not isinstance(date_value, datetime):
-                    order_data["order_date"] = datetime.combine(date_value, datetime.min.time())
-            
-            # upsert order
             order, is_new = upsert_order(db, vendor_name, order_data)
             if is_new:
                 new_count += 1
@@ -308,7 +323,7 @@ def create_sync_log(
         sync_type=sync_type,
         status="running",
         started_at=datetime.utcnow(),
-        extra_metadata=metadata or {}  # FIXED: changed from metadata= to extra_metadata=
+        extra_metadata=metadata or {}
     )
     db.add(sync_log)
     db.commit()
