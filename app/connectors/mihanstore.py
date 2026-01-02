@@ -5,11 +5,12 @@ from datetime import datetime
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from app.connectors.base import BaseConnector, ConnectorResult
 from app.common.log import console
+from app.common.session_manager import SessionManager
 
 
 class MihanstoreConnector(BaseConnector):
     """
-    کانکتور میهن استور برای استخراج آمار و سفارشات
+    کانکتور میهن استور با قابلیت Session Management
     """
     name = "mihanstore"
     base_url = "https://mihanstore.net/partner"
@@ -22,9 +23,12 @@ class MihanstoreConnector(BaseConnector):
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
         self.playwright = None
+        
+        # Session manager
+        self.session_manager = SessionManager()
 
     async def _init_browser(self):
-        """راه‌اندازی Playwright browser"""
+        """راه‌اندازی Playwright browser با session"""
         from playwright.async_api import async_playwright
         
         self.playwright = await async_playwright().start()
@@ -32,11 +36,27 @@ class MihanstoreConnector(BaseConnector):
             headless=self.headless,
             args=['--lang=fa-IR']
         )
-        self.context = await self.browser.new_context(
-            locale='fa-IR',
-            timezone_id='Asia/Tehran',
-            user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
-        )
+        
+        # بررسی session قبلی
+        session_data = self.session_manager.load_session(self.name)
+        
+        if session_data and session_data.get('storage_state'):
+            # بارگذاری session قبلی
+            self.context = await self.browser.new_context(
+                storage_state=session_data['storage_state'],
+                locale='fa-IR',
+                timezone_id='Asia/Tehran',
+                user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            )
+            console.print(f"[cyan]✓ Loaded existing session for {self.name}[/cyan]")
+        else:
+            # ساخت context جدید
+            self.context = await self.browser.new_context(
+                locale='fa-IR',
+                timezone_id='Asia/Tehran',
+                user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            )
+        
         self.page = await self.context.new_page()
         console.print(f"[green]✓ Browser initialized for {self.name}[/green]")
 
@@ -52,6 +72,55 @@ class MihanstoreConnector(BaseConnector):
             await self.playwright.stop()
         console.print(f"[yellow]Browser closed for {self.name}[/yellow]")
 
+    async def _save_session(self):
+        """ذخیره session بعد از login موفق"""
+        try:
+            if not self.context:
+                return False
+            
+            # دریافت cookies
+            cookies = await self.context.cookies()
+            
+            # دریافت storage state
+            storage_state = await self.context.storage_state()
+            
+            # ذخیره
+            return self.session_manager.save_session(
+                vendor_name=self.name,
+                cookies=cookies,
+                storage_state=storage_state
+            )
+            
+        except Exception as e:
+            console.print(f"[red]Error saving session: {e}[/red]")
+            return False
+
+    async def _check_logged_in(self) -> bool:
+        """بررسی اینکه آیا قبلاً login شده یا نه"""
+        try:
+            if not self.page:
+                return False
+            
+            # رفتن به داشبورد
+            await self.page.goto(f"{self.base_url}/index.php", 
+                                wait_until="networkidle", timeout=15000)
+            
+            await asyncio.sleep(1)
+            
+            current_url = self.page.url
+            
+            # اگه به صفحه login redirect نشد، یعنی login هستیم
+            if "logins" not in current_url.lower():
+                console.print(f"[green]✓ Already logged in to {self.name} (using saved session)[/green]")
+                return True
+            else:
+                console.print(f"[yellow]Session expired, need to login again[/yellow]")
+                return False
+                
+        except Exception as e:
+            console.print(f"[yellow]Could not verify login status: {e}[/yellow]")
+            return False
+
     def _extract_number(self, text: str) -> int:
         """استخراج عدد از متن فارسی"""
         if not text:
@@ -64,10 +133,14 @@ class MihanstoreConnector(BaseConnector):
             return 0
 
     async def login(self) -> ConnectorResult:
-        """ورود به پنل همکار میهن استور"""
+        """ورود به پنل همکار میهن استور با Session Management"""
         try:
             if not self.page:
                 await self._init_browser()
+            
+            # بررسی session قبلی
+            if await self._check_logged_in():
+                return ConnectorResult(ok=True, message="Already logged in (using saved session)")
             
             console.print(f"[cyan]Logging in to {self.name}...[/cyan]")
             
@@ -80,14 +153,13 @@ class MihanstoreConnector(BaseConnector):
             await self.page.fill('input[name="password"]', self.password)
             
             # ⚠️ CAPTCHA: باید دستی حل بشه
-            console.print("[yellow]⚠️  Please solve CAPTCHA manually (you have 30 seconds)...[/yellow]")
+            if self.headless:
+                console.print("[red]❌ CAPTCHA required! Please run with headless=False for first-time login[/red]")
+                console.print("[yellow]ℹ️ After first login, session will be saved and you can use headless mode[/yellow]")
+                return ConnectorResult(ok=False, message="CAPTCHA required - use headless=False for first login")
             
-            # صبر برای حل دستی کپچا
-            if not self.headless:
-                await asyncio.sleep(30)
-            else:
-                console.print("[red]❌ Cannot solve CAPTCHA in headless mode![/red]")
-                return ConnectorResult(ok=False, message="CAPTCHA required - use headless=False")
+            console.print("[yellow]⚠️  Please solve CAPTCHA manually (you have 45 seconds)...[/yellow]")
+            await asyncio.sleep(45)
             
             # کلیک روی دکمه ورود
             await self.page.click('input[name="submit"][type="submit"]')
@@ -100,6 +172,11 @@ class MihanstoreConnector(BaseConnector):
             current_url = self.page.url
             if "logins" not in current_url.lower():
                 console.print(f"[green]✓ Login successful to {self.name}[/green]")
+                
+                # ذخیره session
+                await self._save_session()
+                console.print("[cyan]ℹ️ Session saved! Next time you can use headless=True[/cyan]")
+                
                 return ConnectorResult(ok=True, message="Login successful")
             else:
                 console.print(f"[red]✗ Login failed to {self.name}[/red]")
