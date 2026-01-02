@@ -7,3 +7,11 @@ playwright/.auth/
 *.sqlite3
 *.db
 .DS_Store
+
+# Database files
+data/
+!data/.gitkeep
+
+# Session files
+.sessions/
+!.sessions/.gitignore
