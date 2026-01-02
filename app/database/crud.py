@@ -117,6 +117,34 @@ def bulk_upsert_orders(db: Session, vendor_name: str, orders_data: List[Dict]) -
     
     for order_data in orders_data:
         try:
+            # تبدیل order_date از string به datetime
+            if "order_date" in order_data:
+                date_value = order_data["order_date"]
+                
+                # اگر string است، تبدیل کن
+                if isinstance(date_value, str):
+                    try:
+                        # فرمت: 1404-01-12 (شمسی)
+                        date_parts = date_value.split("-")
+                        if len(date_parts) == 3:
+                            # تبدیل به datetime (سال شمسی + 621 = میلادی تقریبی)
+                            jalali_year = int(date_parts[0])
+                            month = int(date_parts[1])
+                            day = int(date_parts[2])
+                            
+                            # تبدیل ساده شمسی به میلادی (تقریبی)
+                            gregorian_year = jalali_year + 621
+                            order_data["order_date"] = datetime(gregorian_year, month, day)
+                    except (ValueError, IndexError) as e:
+                        # در صورت خطا، None قرار بده
+                        order_data["order_date"] = None
+                        console.print(f"[yellow]⚠ Invalid date format: {date_value}[/yellow]")
+                
+                # اگر date است، تبدیل به datetime
+                elif isinstance(date_value, date) and not isinstance(date_value, datetime):
+                    order_data["order_date"] = datetime.combine(date_value, datetime.min.time())
+            
+            # upsert order
             order, is_new = upsert_order(db, vendor_name, order_data)
             if is_new:
                 new_count += 1
@@ -124,6 +152,7 @@ def bulk_upsert_orders(db: Session, vendor_name: str, orders_data: List[Dict]) -
                 updated_count += 1
         except Exception as e:
             errors.append(str(e))
+            console.print(f"[red]✗ Error upserting order: {e}[/red]")
     
     return {
         "new": new_count,
