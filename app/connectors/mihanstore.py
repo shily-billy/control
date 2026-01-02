@@ -7,7 +7,7 @@ from app.connectors.base import BaseConnector, ConnectorResult
 from app.common.log import console
 
 
-class MihanstoреConnector(BaseConnector):
+class MihanstoreConnector(BaseConnector):
     """
     کانکتور میهن استور برای استخراج آمار و سفارشات
     """
@@ -310,7 +310,7 @@ async def test_mihanstore():
         console.print("[red]❌ Please set MIHANSTORE_USERNAME and MIHANSTORE_PASSWORD in .env[/red]")
         return
     
-    connector = MihanstoреConnector(username, password, headless=False)
+    connector = MihanstoreConnector(username, password, headless=False)
     
     # تست sync کامل
     result = await connector.sync_all_data()
