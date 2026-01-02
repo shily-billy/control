@@ -137,8 +137,8 @@ class SyncLog(Base):
     # خطاها
     error_message = Column(Text)
     
-    # داده‌های اضافی
-    metadata = Column(JSON, default={})
+    # داده‌های اضافی (تغییر نام از metadata به extra_metadata)
+    extra_metadata = Column(JSON, default={})
     
     # Relationship
     vendor = relationship('Vendor', back_populates='sync_logs')
