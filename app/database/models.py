@@ -67,7 +67,7 @@ class Order(Base):
     __table_args__ = (
         Index('idx_vendor_order', 'vendor_id', 'order_id', unique=True),
         Index('idx_order_date', 'order_date'),
-        Index('idx_status', 'status'),
+        Index('idx_order_status', 'status'),  # FIXED: renamed from idx_status
     )
     
     def __repr__(self):
@@ -146,7 +146,7 @@ class SyncLog(Base):
     # Indexes
     __table_args__ = (
         Index('idx_vendor_started', 'vendor_id', 'started_at'),
-        Index('idx_status', 'status'),
+        Index('idx_synclog_status', 'status'),  # FIXED: renamed from idx_status
     )
     
     def __repr__(self):
