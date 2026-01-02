@@ -279,7 +279,7 @@ def create_sync_log(
         sync_type=sync_type,
         status="running",
         started_at=datetime.utcnow(),
-        metadata=metadata or {}
+        extra_metadata=metadata or {}  # FIXED: changed from metadata= to extra_metadata=
     )
     db.add(sync_log)
     db.commit()
