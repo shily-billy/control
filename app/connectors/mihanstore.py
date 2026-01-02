@@ -144,7 +144,7 @@ class MihanstoreConnector(BaseConnector):
             
             console.print(f"[cyan]Logging in to {self.name}...[/cyan]")
             
-            # رفتن به صفحه لاگین
+            # رفتن به صفحه لاگین (با s در انتها!)
             await self.page.goto(f"{self.base_url}/index.php?act=logins", 
                                 wait_until="networkidle", timeout=30000)
             
