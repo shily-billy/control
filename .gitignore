@@ -1,17 +1,73 @@
+# Python
 __pycache__/
-*.pyc
-.venv/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment
 .env
-.env.*
-playwright/.auth/
-*.sqlite3
-*.db
+.env.local
+.env.*.local
+config/.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 
-# Database files
-data/
-!data/.gitkeep
+# Node
+node_modules/
+.next/
+out/
+build/
+.npm
+.yarn
+yarn-error.log
+package-lock.json
+yarn.lock
 
-# Session files
-.sessions/
-!.sessions/.gitignore
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/postgres/
+data/redis/
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
+
+# Misc
+.cache/
+tmp/
+temp/
+*.pid
+*.seed
+*.pid.lock
+.coverage
+.pytest_cache/
