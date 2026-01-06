@@ -1,114 +1,97 @@
-from typing import Dict, List, Optional
-import logging
+from typing import List, Dict, Optional
+from integrations.digikala import DigikalaIntegration
+from integrations.mihanstore import MihanstoreIntegration
+from integrations.torob import TorobIntegration
 from core.config import settings
-
-logger = logging.getLogger(__name__)
 
 class PlatformSelector:
     """
-    هوش مصنوعی انتخاب بهترین پلتفرم برای هر محصول
+    سیستم هوشمند انتخاب پلتفرم با بیشترین سود
     """
     
-    PLATFORMS = {
-        "digikala": {
-            "name": "دیجی‌کالا",
-            "commission_rate": 0.12,
-            "shipping_cost": 0,
-            "reliability_score": 9.5,
-            "categories": ["electronics", "fashion", "home", "beauty"]
-        },
-        "mihanstore": {
-            "name": "میهن استور",
-            "commission_rate": 0.40,
-            "shipping_cost": 0,
-            "reliability_score": 8.8,
-            "categories": ["fashion", "shoes", "bags"]
-        },
-        "bamilo": {
-            "name": "بامیلو",
-            "commission_rate": 0.25,
-            "shipping_cost": 0,
-            "reliability_score": 8.5,
-            "categories": ["fashion", "beauty", "accessories"]
-        },
-        "torob": {
-            "name": "ترب",
-            "commission_rate": 0.10,
-            "shipping_cost": 0,
-            "reliability_score": 9.0,
-            "categories": ["electronics", "fashion", "home"]
-        },
-        "technolife": {
-            "name": "تکنولایف",
-            "commission_rate": 0.12,
-            "shipping_cost": 0,
-            "reliability_score": 8.7,
-            "categories": ["electronics", "mobile", "laptop"]
+    def __init__(self):
+        self.platforms = {
+            "digikala": DigikalaIntegration(
+                affiliate_id=settings.DIGIKALA_AFFILIATE_ID,
+                commission_rate=0.12
+            ),
+            "mihanstore": MihanstoreIntegration(
+                partner_id=settings.MIHANSTORE_PARTNER_ID,
+                commission_rate=0.40
+            ),
+            "torob": TorobIntegration(
+                api_key=settings.TOROB_API_KEY,
+                commission_rate=0.10
+            )
         }
-    }
     
-    @classmethod
-    def select_best_platform(cls, product_data: Dict) -> Dict:
+    async def search_all_platforms(self, query: str) -> Dict[str, List[Dict]]:
+        """جستجو در تمام پلتفرم‌ها"""
+        results = {}
+        
+        for platform_name, platform in self.platforms.items():
+            try:
+                products = await platform.search_product(query)
+                results[platform_name] = products
+            except Exception as e:
+                print(f"Error searching {platform_name}: {e}")
+                results[platform_name] = []
+        
+        return results
+    
+    def select_best_platform(self, product_title: str, platforms_data: Dict[str, List[Dict]]) -> Optional[Dict]:
         """
-        انتخاب بهترین پلتفرم بر اساس محصول
-        
-        Args:
-            product_data: اطلاعات محصول شامل قیمت، دسته‌بندی و...
-        
-        Returns:
-            بهترین پلتفرم با جزئیات
+        انتخاب بهترین پلتفرم بر اساس:
+        1. بیشترین کمیسیون
+        2. موجودی محصول
+        3. قیمت مناسب
         """
-        price = product_data.get("price", 0)
-        category = product_data.get("category", "")
+        best_option = None
+        max_profit = 0
         
-        best_platform = None
-        best_score = -1
-        
-        for platform_key, platform in cls.PLATFORMS.items():
-            # Check if platform supports this category
-            if category and category not in platform["categories"]:
+        for platform_name, products in platforms_data.items():
+            if not products:
                 continue
             
-            # Calculate profit score
-            commission = price * platform["commission_rate"]
-            shipping = platform["shipping_cost"]
-            reliability = platform["reliability_score"]
+            platform = self.platforms[platform_name]
             
-            # Score formula
-            score = commission - shipping + (reliability * 10)
-            
-            if score > best_score:
-                best_score = score
-                best_platform = {
-                    "platform": platform_key,
-                    "name": platform["name"],
-                    "commission": commission,
-                    "commission_rate": platform["commission_rate"],
-                    "profit": commission - shipping,
-                    "score": score
-                }
+            # پیدا کردن محصول مشابه
+            for product in products:
+                if product.get("in_stock", True):
+                    price = product.get("price", 0)
+                    commission = platform.calculate_commission(price)
+                    
+                    # محاسبه سود خالص
+                    profit = commission
+                    
+                    if profit > max_profit:
+                        max_profit = profit
+                        best_option = {
+                            "platform": platform_name,
+                            "product": product,
+                            "commission": commission,
+                            "commission_rate": platform.commission_rate,
+                            "profit": profit
+                        }
         
-        logger.info(f"Selected platform: {best_platform['name']} with score: {best_score}")
-        return best_platform
+        return best_option
     
-    @classmethod
-    def get_all_platforms_comparison(cls, product_data: Dict) -> List[Dict]:
+    async def compare_prices(self, product_title: str) -> Dict:
         """
-        مقایسه تمام پلتفرم‌ها برای یک محصول
+        مقایسه قیمت در تمام پلتفرم‌ها
         """
-        price = product_data.get("price", 0)
-        results = []
+        all_results = await self.search_all_platforms(product_title)
+        best = self.select_best_platform(product_title, all_results)
         
-        for platform_key, platform in cls.PLATFORMS.items():
-            commission = price * platform["commission_rate"]
-            results.append({
-                "platform": platform_key,
-                "name": platform["name"],
-                "commission": commission,
-                "commission_rate": platform["commission_rate"],
-                "reliability_score": platform["reliability_score"]
-            })
-        
-        # Sort by commission (descending)
-        results.sort(key=lambda x: x["commission"], reverse=True)
-        return results
+        return {
+            "query": product_title,
+            "all_platforms": all_results,
+            "recommended": best,
+            "total_platforms_checked": len(self.platforms),
+            "platforms_with_results": sum(1 for r in all_results.values() if r)
+        }
+    
+    async def close_all(self):
+        """بستن تمام سشن‌ها"""
+        for platform in self.platforms.values():
+            await platform.close_session()
