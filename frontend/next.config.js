@@ -1,12 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  images: {
-    domains: ['localhost', 'dotshop.ir'],
-  },
   i18n: {
     locales: ['fa'],
     defaultLocale: 'fa',
+  },
+  images: {
+    domains: [
+      'dkstatics-public.digikala.com',
+      'mihanstore.net',
+      'torob.com',
+      'static.bamilo.com'
+    ],
   },
 }
 
