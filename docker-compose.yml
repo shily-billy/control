@@ -1,31 +1,152 @@
-version: "3.9"
+version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: dotshop_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-dotshop}
+      POSTGRES_USER: ${DB_USER:-dotshop_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+
+  # Redis Cache
   redis:
     image: redis:7-alpine
+    container_name: dotshop_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
+    networks:
+      - dotshop_network
+    restart: unless-stopped
 
-  api:
-    build: .
-    command: uvicorn control.dashboard.api.main:app --host 0.0.0.0 --port 8000 --reload
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dotshop_backend
+    env_file:
+      - ./config/.env
     volumes:
-      - ./:/app
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CONTROL_ENV=dev
+      - ./backend:/app
+      - ./uploads:/app/uploads
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
+      - postgres
       - redis
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  worker:
-    build: .
-    command: celery -A control.worker.celery_app worker --loglevel=INFO
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dotshop_frontend
+    env_file:
+      - ./config/.env
     volumes:
-      - ./:/app
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CONTROL_ENV=dev
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
+      - backend
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+    command: npm run dev
+
+  # Telegram Bot
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: dotshop_telegram_bot
+    env_file:
+      - ./config/.env
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      - backend
       - redis
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+
+  # Celery Worker (Background Tasks)
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dotshop_celery_worker
+    env_file:
+      - ./config/.env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+    command: celery -A core.celery worker --loglevel=info
+
+  # Celery Beat (Scheduled Tasks)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dotshop_celery_beat
+    env_file:
+      - ./config/.env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+    command: celery -A core.celery beat --loglevel=info
+
+  # Nginx (Reverse Proxy)
+  nginx:
+    image: nginx:alpine
+    container_name: dotshop_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - dotshop_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  dotshop_network:
+    driver: bridge
